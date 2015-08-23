@@ -6,10 +6,165 @@ output: html_document
 
 ##Synopsis
 
+In this report we aim to identify storms and severe weather events that cause the most harm to people and the greatest economic consequences. The data are from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. Below I will show which events cause the most deaths and injuries and which events have the most financial impact. This analysis sets out to be reproducible.
+
 ##Data Processing
 
-```{r}
+In preparation for the analysis we must load the data and libraries as well as set our options for R.
+
+```{r message=FALSE}
+library(knitr)
 opts_chunk$set(echo = TRUE, results = 'hold')
+knitr::opts_chunk$set(fig.path = 'figure/')
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+options(scipen=9)
+```
+
+The data is hosted on the internet and was downloaded on Fri Aug 21 22:00:34 2015. The code below will download the data if that file can't be found in the data directory. Once the data is downloaded we will read it into a variable storms. This large dataset will be cached and will only be read again if something changes in the code.
+
+```{r cache=TRUE}
+#Create a data directory if one doesn't already exist
+if (!file.exists("data")){
+    dir.create("data")
+}
+
+#Store the file URL
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+#If the file doesn't exist in the data directory then download it
+if(!file.exists(".\\data\\repdata-data-StormData.csv.bz2")){
+    download.file(fileUrl, destfile = ".\\data\\repdata-data-StormData.csv.bz2", 
+                  mode = "wb")
+    dateDownloaded <- date()
+    dateDownloaded
+}
+
+#Read data into the variable storms
+storms <- read.csv(".\\data\\repdata-data-StormData.csv.bz2")
+```
+
+Let's get a feel for the data. 
+
+```{r}
+str(storms)
+dimStorms <- dim(storms) #calculate dimensions for discussion
+```
+
+There are `r dimStorms[1]` observations and `r dimStorms[2]` different variables collected about those observations. I know that some of the storm and big weather events held in the EVTYPE column appear with different capitalization. So we can group the events together better we will make them all uppercase.
+
+```{r cache=TRUE}
+#make events all uppercase
+storms$EVTYPE <- toupper(storms$EVTYPE)
 ```
 
 ##Results
+
+###Events most harmful with respect to population health
+
+The data collection is a mix of events which caused injuries or fatalities or caused property damage or a mixture of both. Focusing on events that were harmful to health the data below is going to be restricted to only those events where someone was injured or killed.
+
+```{r}
+library(dplyr)
+#take only those events that cause injuries or fatalities
+#Keep only the columns concerned with the type of storm number,
+#the number of fatalities and the number of injuries
+harmful <- storms %>%
+    select(EVTYPE, 
+           FATALITIES,
+           INJURIES) %>%
+    
+    #Only take records where there was at least one fatality or injury
+    filter(FATALITIES > 0 |
+               INJURIES > 0) %>%
+    
+    #Put all similar storms together
+    group_by(EVTYPE) %>%
+    
+    #Add up the total deaths and injuries for each type of weather event
+    summarise(Fatalities = sum(FATALITIES), 
+              Injuries = sum(INJURIES)) %>%
+    
+    #Order by the most to least deaths
+    arrange(desc(Fatalities), desc(Injuries))
+
+#Show the events that cause the most harm
+head(harmful, 10)
+```
+
+As you can see the Events that caused death or injury were gathered by event type and the total number of Fatalities and Injuries for that event are added across all the states and different storms. Once this is done we can see that Tornado's caused the most deaths when added together.
+
+Let's see the top ten events plotted with Fatalities next to Injuries.
+
+```{r}
+#Keep only the 1o most harmful
+harmful10 <- harmful[1:10, ]
+
+#Change the format from wide to long for ease of plotting
+harmfultall <- gather(harmful10, TypeOfHarm, Numbers, Fatalities:Injuries)
+
+#Order the events from most to least deaths
+harmfultall$EVTYPE <- factor(harmfultall$EVTYPE,
+                           levels = harmful10$EVTYPE, ordered = TRUE)
+
+#Plot a barchart
+g <- ggplot(data = harmfultall, aes(x = EVTYPE, y = Numbers, fill = TypeOfHarm))
+g <- g + geom_bar(stat="identity", position="dodge")
+g <- g + coord_cartesian(ylim=c(0,15000))
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g + labs(title = "Bar chart of deaths and injuries by event type")
+g <- g + labs(x = "Event Type", y = "Number of injuries over 20,000 not shown")
+
+g
+```
+
+Tornado's acturally caused `r harmful[1, 3]` injuries however this figure is not shown on the graph to allow us to zoom in on other features such as the comparison of events causing relativity less damage to health. As can be seen the top 3 events causing death are Tornado, Excessive Heat and flash flood. Further down the list are Lightning, TSTM Wind and Flood which have caused less deaths but over 5000 injuries each.
+
+
+###Events with the greatest economic consequences
+
+Economic consequences can be dificult to estimate however the data has been put together with a breakdown of the estimaged value of property damage and estimaged value of damage to crops. If you require further details of a particular event along with possible notes on how reliable the costings of damage see the Remarks column in the full data set.
+
+Below we identify events where there is either property or crop damage. We convert the short hand "K" for thousands and "B" for billions to allow us to calculate the Property damage costs, crop damage cost and total cost in US Dollars.
+
+```{r}
+#Set up variable to convet short hand to dollar amounts
+convertPROPDMGEXP <- data.frame(PROPDMGEXP = c("H", "K", "M", "B", ""), 
+                           PROPDMGfactor = c(100, 1000, 1000000, 1000000000, 0))
+convertCROPDMGEXP <- data.frame(CROPDMGEXP = c("H", "K", "M", "B", ""), 
+                                CROPDMGfactor = c(100, 1000, 1000000, 1000000000, 0))
+
+#Select only the columns we need for the analysis including
+#PROPDMG: value of property damage, PROPDMGEXP: the unit of value
+#CROPDMG: value of crop damage, cROPDMGEXP: the unit of value
+damage <- select(storms,
+                EVTYPE,
+                PROPDMG,
+                PROPDMGEXP,
+                CROPDMG,
+                CROPDMGEXP) %>%
+    
+    #Convert all the units to upper case for easy comparison
+    mutate_each(funs(toupper), PROPDMGEXP, CROPDMGEXP) %>%
+    
+    #Keep entries with correctly filled in units
+    filter(PROPDMGEXP %in% c("H", "K", "M", "B") |
+                         CROPDMGEXP %in% c("H", "K", "M", "B")) %>%
+    
+    #Keep entries that have both property and crop units entered correctly
+    filter(PROPDMGEXP %in% c("H", "K", "M", "B", "") &
+                     CROPDMGEXP %in% c("H", "K", "M", "B", "")) %>%
+    
+    #Unit in dollars
+    left_join(convertPROPDMGEXP, c("PROPDMGEXP")) %>%
+    left_join(convertCROPDMGEXP, c("CROPDMGEXP")) %>%
+    
+    #calulate the dollar amounts for property, crop and all
+    mutate(PropertyCosts = PROPDMG * PROPDMGfactor,
+           CropCosts = CROPDMG * CROPDMGfactor,
+           TotalDamage = PropertyCosts + CropCosts) %>%
+    
+    #Order by the highest total value
+    arrange(desc(TotalDamage), desc(PropertyCosts), desc(CropCosts))
+```

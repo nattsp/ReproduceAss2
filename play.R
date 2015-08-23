@@ -15,6 +15,7 @@ if(!file.exists(".\\data\\repdata-data-StormData.csv.bz2")){
     dateDownloaded <- date()
     dateDownloaded
 }
+dateDownloaded
 
 #Read in data
 storms <- read.csv(".\\data\\repdata-data-StormData.csv.bz2")
@@ -31,7 +32,7 @@ harmful <- select(storms,
                   FATALITIES, 
                   INJURIES) %>%
     filter(FATALITIES > 0 |
-               data$INJURIES > 0) %>%
+               INJURIES > 0) %>%
     group_by(EVTYPE) %>%
     summarise(Fatalities = sum(FATALITIES), 
               Injuries = sum(INJURIES)) %>%
