@@ -156,6 +156,94 @@ filter(damage, PROPDMGEXP =="?")
 
 summary(damage)
 
+#################################################
+```{r}
+#Set up variable to convet short hand to dollar amounts
+convertPROPDMGEXP <- data.frame(PROPDMGEXP = c("H", "K", "M", "B", ""), 
+                                PROPDMGfactor = c(100, 1000, 1000000, 1000000000, 0))
+convertCROPDMGEXP <- data.frame(CROPDMGEXP = c("H", "K", "M", "B", ""), 
+                                CROPDMGfactor = c(100, 1000, 1000000, 1000000000, 0))
+
+#Select only the columns we need for the analysis including
+#PROPDMG: value of property damage, PROPDMGEXP: the unit of value
+#CROPDMG: value of crop damage, cROPDMGEXP: the unit of value
+damage <- select(storms,
+                 EVTYPE,
+                 PROPDMG,
+                 PROPDMGEXP,
+                 CROPDMG,
+                 CROPDMGEXP) %>%
+    
+    #Convert all the units to upper case for easy comparison
+    mutate_each(funs(toupper), PROPDMGEXP, CROPDMGEXP) %>%
+    
+    #Keep entries with correctly filled in units
+    filter(PROPDMGEXP %in% c("H", "K", "M", "B") |
+               CROPDMGEXP %in% c("H", "K", "M", "B")) %>%
+    
+    #Keep entries that have both property and crop units entered correctly
+    filter(PROPDMGEXP %in% c("H", "K", "M", "B", "") &
+               CROPDMGEXP %in% c("H", "K", "M", "B", "")) %>%
+    
+    #Unit in dollars
+    left_join(convertPROPDMGEXP, c("PROPDMGEXP")) %>%
+    left_join(convertCROPDMGEXP, c("CROPDMGEXP")) %>%
+    
+    #calulate the dollar amounts for property, crop and all
+    mutate(PropertyCosts = PROPDMG * PROPDMGfactor,
+           CropCosts = CROPDMG * CROPDMGfactor,
+           TotalDamage = PropertyCosts + CropCosts) %>%
+    
+    #Order by the highest total value
+    arrange(desc(TotalDamage), desc(PropertyCosts), desc(CropCosts))
+
+head(damage[, c(1, 8, 9, 10)], 10)
+
+
+#add all the damage costs for each event type
+damageEVTYPE <- damage %>%
+    
+    #keep only the totals in dollars
+    select(EVTYPE, PropertyCosts, CropCosts, TotalDamage)%>%
+    
+    #group by Event type
+    group_by(EVTYPE) %>%
+    
+    #Add up the costs for each type
+    summarize(PropertyCosts = sum(PropertyCosts),
+              CropCosts = sum(CropCosts),
+        TotalDamage = sum(TotalDamage)) %>%
+    
+    #Order starting at the most expensive
+    arrange(desc(TotalDamage))
+
+#Take top 10 most expensive event types
+damageTotalTop10 <- damageEVTYPE[1:10, ]
+
+#Keep breakdown
+#select(EVTYPE, PropertyCosts, CropCosts)
+
+#Order them for the graph
+EVTYPETop10 <- damageEVTYPE[1:10, ]$EVTYPE
+damageTotalTop10$EVTYPE <- factor(damageTotalTop10$EVTYPE,
+                                  levels = EVTYPETop10, ordered = TRUE)
+
+#Convert to wide format to show both property and crop costs
+damageTotalTop10 <- gather(damageTotalTop10, DamageType, Dollars, PropertyCosts:TotalDamage)
+
+#plot a bar graph
+g <- ggplot(data = damageTotalTop10, aes(x = EVTYPE, y = Dollars, fill = DamageType))
+g <- g + geom_bar(stat="identity", position="dodge")
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g + labs(title = "Bar chart showing  costs for 10 events with greatest economic consequency")
+g <- g + labs(x = "Event Type", y = "Costs in Dollars")
+
+g
+
+
+
+
+
 
 
 #902297 rows if not specified

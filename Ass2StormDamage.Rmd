@@ -93,7 +93,7 @@ harmful <- storms %>%
 head(harmful, 10)
 ```
 
-As you can see the Events that caused death or injury were gathered by event type and the total number of Fatalities and Injuries for that event are added across all the states and different storms. Once this is done we can see that Tornado's caused the most deaths when added together.
+Events that caused death or injury are gathered by event type in the above table and the total number of Fatalities and Injuries for that event are added across all the states and different storms events. We can see Tornado's caused the most deaths when added together.
 
 Let's see the top ten events plotted with Fatalities next to Injuries.
 
@@ -119,12 +119,12 @@ g <- g + labs(x = "Event Type", y = "Number of injuries over 20,000 not shown")
 g
 ```
 
-Tornado's acturally caused `r harmful[1, 3]` injuries however this figure is not shown on the graph to allow us to zoom in on other features such as the comparison of events causing relativity less damage to health. As can be seen the top 3 events causing death are Tornado, Excessive Heat and flash flood. Further down the list are Lightning, TSTM Wind and Flood which have caused less deaths but over 5000 injuries each.
+Tornado's actually caused `r harmful[1, 3]` injuries however this figure is not shown on the graph to allow us to zoom in on other features such as the comparison of events causing relativity less damage to health. As can be seen the top 3 events causing death are Tornado, Excessive Heat and flash flood. Further down the list are Lightning, TSTM Wind and Flood which have caused less deaths but over 5000 injuries each.
 
 
 ###Events with the greatest economic consequences
 
-Economic consequences can be dificult to estimate however the data has been put together with a breakdown of the estimaged value of property damage and estimaged value of damage to crops. If you require further details of a particular event along with possible notes on how reliable the costings of damage see the Remarks column in the full data set.
+Economic consequences can be difficult to estimate however the data has been put together with a breakdown of the estimated value of property damage and estimated value of damage to crops. If you require further details of a particular event along with possible notes on how reliable the costings of damage see the Remarks column in the full data set.
 
 Below we identify events where there is either property or crop damage. We convert the short hand "K" for thousands and "B" for billions to allow us to calculate the Property damage costs, crop damage cost and total cost in US Dollars.
 
@@ -189,7 +189,7 @@ damageEVTYPE <- damage %>%
     
     #Add up the costs for each type
     summarize(PropertyCosts = sum(PropertyCosts),
-              CropCosts = sum(CropCosts)
+              CropCosts = sum(CropCosts),
         TotalDamage = sum(TotalDamage)) %>%
     
     #Order starting at the most expensive
@@ -205,25 +205,27 @@ Here is the same data in a graph.
 
 ```{r}
 #Take top 10 most expensive event types
-damageTotalTop10 <- damageEVTYPE[1:10, ] %>%
-    
-    #Keep breakdown
-    select(EVTYPE, PropertyCosts, CropCosts)
+damageTotalTop10 <- damageEVTYPE[1:10, ]
 
-#Order them for the graph
+#Order events on the graph from highest total expense
 EVTYPETop10 <- damageEVTYPE[1:10, ]$EVTYPE
 damageTotalTop10$EVTYPE <- factor(damageTotalTop10$EVTYPE,
-                             levels = EVTYPETop10, ordered = TRUE)
+                                  levels = EVTYPETop10, ordered = TRUE)
 
 #Convert to wide format to show both property and crop costs
-damagetotalTop10 <- gather(damageTotalTop10, DamageType, Dollars, PropertyCosts:CropCosts)
+damageTotalTop10 <- gather(damageTotalTop10, DamageType, Dollars, PropertyCosts:TotalDamage)
 
 #plot a bar graph
 g <- ggplot(data = damageTotalTop10, aes(x = EVTYPE, y = Dollars, fill = DamageType))
-g <- g + geom_bar(stat="identity")
+g <- g + geom_bar(stat="identity", position="dodge")
 g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 g <- g + labs(title = "Bar chart showing  costs for 10 events with greatest economic consequency")
-g <- g + labs(x = "Event Type", y = "Log of costs")
+g <- g + labs(x = "Event Type", y = "Costs in Dollars")
 
 g
 ```
+
+We can see on the graph that the largest cost is the combined total for floods. The first four costs in decreasing cost come from Flood, Hurricane/Typhoon, Tornado and Storm Surge with the expensive dropping off. After that the cost associated with Hail, Flashflood, Drought and Hurricane are more comparable.
+
+###Limitations
+There is user error involved in submitting these storm events into the database. More work could be done to group like events together and clean up some spelling mistakes and alternative event type names to get an even clearer picture of the most life threatening and costly events.
