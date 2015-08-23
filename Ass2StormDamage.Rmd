@@ -168,3 +168,62 @@ damage <- select(storms,
     #Order by the highest total value
     arrange(desc(TotalDamage), desc(PropertyCosts), desc(CropCosts))
 ```
+
+The top events ordered by most expensive damage are
+
+```{r}
+head(damage[, c(1, 8, 9, 10)], 10)
+```
+
+We can see that a single flood cost around $115 Billion dollars. Let's take a look at the combined Total damage costs for all events of the same type. First we need to add these costs up.
+
+```{r}
+#add all the damage costs for each event type
+damageEVTYPE <- damage %>%
+    
+    #keep only the totals in dollars
+    select(EVTYPE, PropertyCosts, CropCosts, TotalDamage) %>%
+    
+    #group by Event type
+    group_by(EVTYPE) %>%
+    
+    #Add up the costs for each type
+    summarize(PropertyCosts = sum(PropertyCosts),
+              CropCosts = sum(CropCosts)
+        TotalDamage = sum(TotalDamage)) %>%
+    
+    #Order starting at the most expensive
+    arrange(desc(TotalDamage))
+
+#Show the top ten event types
+head(damageEVTYPE, 10)
+```
+
+After we have added up all the costs Flood still costs the most. Even though we saw earlier a storm surge was the second most expensive single event when we add up the costs for all such events we find Hurricane/Typhoon is the second largest in terms of expense.
+
+Here is the same data in a graph.
+
+```{r}
+#Take top 10 most expensive event types
+damageTotalTop10 <- damageEVTYPE[1:10, ] %>%
+    
+    #Keep breakdown
+    select(EVTYPE, PropertyCosts, CropCosts)
+
+#Order them for the graph
+EVTYPETop10 <- damageEVTYPE[1:10, ]$EVTYPE
+damageTotalTop10$EVTYPE <- factor(damageTotalTop10$EVTYPE,
+                             levels = EVTYPETop10, ordered = TRUE)
+
+#Convert to wide format to show both property and crop costs
+damagetotalTop10 <- gather(damageTotalTop10, DamageType, Dollars, PropertyCosts:CropCosts)
+
+#plot a bar graph
+g <- ggplot(data = damageTotalTop10, aes(x = EVTYPE, y = Dollars, fill = DamageType))
+g <- g + geom_bar(stat="identity")
+g <- g + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g <- g + labs(title = "Bar chart showing  costs for 10 events with greatest economic consequency")
+g <- g + labs(x = "Event Type", y = "Log of costs")
+
+g
+```
